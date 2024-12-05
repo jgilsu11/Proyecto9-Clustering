@@ -569,4 +569,4 @@ class Clustering:
             "silhouette_score": silhouette,
             "davies_bouldin_index": davies_bouldin,
             "cardinalidad": cardinalidad
-        }, index = [0])
+        })
