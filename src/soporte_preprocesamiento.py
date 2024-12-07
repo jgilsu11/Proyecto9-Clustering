@@ -420,7 +420,7 @@ def identificar_outliers_zscore(df, limite_desviaciones =3):
 
 
 def visualizar_categoricas(df, dependiente, tamanio, tipo_graf="box", bigote=1.5, metrica="mean"):
-    df_categoricas=f.separar_dataframe(df)[1]
+    df_categoricas=df.select_dtypes("O")
     num_filas=math.ceil(len(df_categoricas.columns)/2)
 
     fig, axes = plt.subplots(nrows= num_filas, ncols= 2, figsize= tamanio)
