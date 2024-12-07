@@ -64,7 +64,7 @@ from sklearn.preprocessing import OneHotEncoder, OrdinalEncoder, LabelEncoder, T
 
 
 
-def exploracion_dataframe(dataframe, columna_control):
+def exploracion_dataframe(dataframe, columna_control, estadisticos = False):
     """
     Realiza un análisis exploratorio básico de un DataFrame, mostrando información sobre duplicados,
     valores nulos, tipos de datos, valores únicos para columnas categóricas y estadísticas descriptivas
@@ -89,119 +89,253 @@ def exploracion_dataframe(dataframe, columna_control):
     df_nulos = pd.DataFrame(dataframe.isnull().sum() / dataframe.shape[0] * 100, columns = ["%_nulos"])
     display(df_nulos[df_nulos["%_nulos"] > 0])
     
+    # Tipos de columnas
     print("\n ..................... \n")
     print(f"Los tipos de las columnas son:")
     display(pd.DataFrame(dataframe.dtypes, columns = ["tipo_dato"]))
     
-    
+    # Enseñar solo las columnas categoricas (o tipo objeto)
     print("\n ..................... \n")
     print("Los valores que tenemos para las columnas categóricas son: ")
     dataframe_categoricas = dataframe.select_dtypes(include = "O")
     
     for col in dataframe_categoricas.columns:
-        print(f"La columna {col.upper()} tiene las siguientes valore únicos:")
+        print(f"La columna {col.upper()} tiene los siguientes valores únicos:")
+        print(f"Mostrando {pd.DataFrame(dataframe[col].value_counts()).head().shape[0]} categorías con más valores del total de {len(pd.DataFrame(dataframe[col].value_counts()))} categorías ({pd.DataFrame(dataframe[col].value_counts()).head().shape[0]}/{len(pd.DataFrame(dataframe[col].value_counts()))})")
         display(pd.DataFrame(dataframe[col].value_counts()).head())    
     
     # como estamos en un problema de A/B testing y lo que realmente nos importa es comparar entre el grupo de control y el de test, los principales estadísticos los vamos a sacar de cada una de las categorías
+    if estadisticos == True:
+        for categoria in dataframe[columna_control].unique():
+            dataframe_filtrado = dataframe[dataframe[columna_control] == categoria]
+            #Describe de objetos
+            print("\n ..................... \n")
+
+            print(f"Los principales estadísticos de las columnas categóricas para el {categoria.upper()} son: ")
+            display(dataframe_filtrado.describe(include = "O").T)
+
+            #Hacer un describe
+            print("\n ..................... \n")
+            print(f"Los principales estadísticos de las columnas numéricas para el {categoria.upper()} son: ")
+            display(dataframe_filtrado.describe().T)
+    else: 
+        pass
+    print("\n----------\n")
+    print("Las principales estadísticas de las variables númericas son:")
+    display(dataframe.describe().T)
+
+    print("\n----------\n")
+    print("Las principales estadísticas de las variables categóricas son:")
+    display(dataframe.describe(include = "O").T)
+
+    print("\n----------\n")
+    print("Las características principales del dataframe son:")
+    display(dataframe.info())
+
+
+
+class Visualizador:
+    """
+    Clase para visualizar la distribución de variables numéricas y categóricas de un DataFrame.
+
+    Attributes:
+    - dataframe (pandas.DataFrame): El DataFrame que contiene las variables a visualizar.
+
+    Methods:
+    - __init__: Inicializa el VisualizadorDistribucion con un DataFrame y un color opcional para las gráficas.
+    - separar_dataframes: Separa el DataFrame en dos subconjuntos, uno para variables numéricas y otro para variables categóricas.
+    - plot_numericas: Grafica la distribución de las variables numéricas del DataFrame.
+    - plot_categoricas: Grafica la distribución de las variables categóricas del DataFrame.
+    - plot_relacion2: Visualiza la relación entre una variable y todas las demás, incluyendo variables numéricas y categóricas.
+    """
+
+    def __init__(self, dataframe):
+        """
+        Inicializa el VisualizadorDistribucion con un DataFrame y un color opcional para las gráficas.
+
+        Parameters:
+        - dataframe (pandas.DataFrame): El DataFrame que contiene las variables a visualizar.
+        - color (str, opcional): El color a utilizar en las gráficas. Por defecto es "grey".
+        """
+        self.dataframe = dataframe
+
+    def separar_dataframes(self):
+        """
+        Separa el DataFrame en dos subconjuntos, uno para variables numéricas y otro para variables categóricas.
+
+        Returns:
+        - pandas.DataFrame: DataFrame con variables numéricas.
+        - pandas.DataFrame: DataFrame con variables categóricas.
+        """
+        return self.dataframe.select_dtypes(include=np.number), self.dataframe.select_dtypes(include=["O", "category"])
     
-    # for categoria in dataframe[columna_control].unique():
-    #     dataframe_filtrado = dataframe[dataframe[columna_control] == categoria]
+    def plot_numericas(self, color="grey", tamano_grafica=(20, 10)):
+        """
+        Grafica la distribución de las variables numéricas del DataFrame.
+
+        Parameters:
+        - color (str, opcional): El color a utilizar en las gráficas. Por defecto es "grey".
+        - tamaño_grafica (tuple, opcional): El tamaño de la figura de la gráfica. Por defecto es (15, 5).
+        """
+        lista_num = self.separar_dataframes()[0].columns
+        fig, axes = plt.subplots(ncols = 2, nrows = math.ceil(len(lista_num)/2), figsize=tamano_grafica, sharey=True)
+        axes = axes.flat
+        for indice, columna in enumerate(lista_num):
+            sns.histplot(x=columna, data=self.dataframe, ax=axes[indice], color=color, bins=20)
+            axes[indice].set_title(f"Distribución de {columna}")
+        plt.suptitle("Distribución de variables numéricas")
+        plt.tight_layout()
+
+        if len(lista_num) % 2 !=0:
+            fig.delaxes(axes[-1])
+
+
+    def plot_categoricas(self, color="grey", tamano_grafica=(20, 10)):
+        """
+        Grafica la distribución de las variables categóricas del DataFrame.
+
+        Parameters:
+        - color (str, opcional): El color a utilizar en las gráficas. Por defecto es "grey".
+        - tamaño_grafica (tuple, opcional): El tamaño de la figura de la gráfica. Por defecto es (15, 5).
+        """
+        lista_cat = self.separar_dataframes()[1].columns
+        fig, axes = plt.subplots(ncols = 2, nrows = math.ceil(len(lista_cat) / 2), figsize=tamano_grafica)
+        axes = axes.flat
+        for indice, columna in enumerate(lista_cat):
+            sns.countplot(x=columna, data=self.dataframe, order=self.dataframe[columna].value_counts().index,
+                          ax=axes[indice], color=color)
+            axes[indice].tick_params(rotation=90)
+            axes[indice].set_title(columna)
+            axes[indice].set(xlabel=None)
+
+        plt.suptitle("Distribución de variables categóricas")
+        plt.tight_layout()
+
+        if len(lista_cat) % 2 !=0:
+            fig.delaxes(axes[-1])
+
+
+    def plot_relacion(self, vr, tamano_grafica=(20, 10), tamanio_fuente=18):
+        """
+        Genera gráficos que muestran la relación entre cada columna del DataFrame y una variable de referencia (vr).
+        Los gráficos son adaptativos según el tipo de dato: histogramas para variables numéricas y countplots para categóricas.
+
+        Parámetros:
+        -----------
+        vr : str
+            Nombre de la columna que actúa como la variable de referencia para las relaciones.
+        tamano_grafica : tuple, opcional
+            Tamaño de la figura en el formato (ancho, alto). Por defecto es (20, 10).
+        tamanio_fuente : int, opcional
+            Tamaño de la fuente para los títulos de los gráficos. Por defecto es 18.
+
+        Retorno:
+        --------
+        None
+            Muestra una serie de subgráficos con las relaciones entre la variable de referencia y el resto de columnas del DataFrame.
+
+        Notas:
+        ------
+        - La función asume que el DataFrame de interés está definido dentro de la clase como `self.dataframe`.
+        - Se utiliza `self.separar_dataframes()` para obtener las columnas numéricas y categóricas en listas separadas.
+        - La variable de referencia (`vr`) no será graficada contra sí misma.
+        - Los gráficos utilizan la paleta "magma" para la diferenciación de categorías o valores de la variable de referencia.
+        """
+
+        lista_num = self.separar_dataframes()[0].columns
+        lista_cat = self.separar_dataframes()[1].columns
+
+        fig, axes = plt.subplots(ncols = 2, nrows = math.ceil(len(self.dataframe.columns) / 2), figsize=tamano_grafica)
+        axes = axes.flat
+
+        for indice, columna in enumerate(self.dataframe.columns):
+            if columna == vr:
+                fig.delaxes(axes[indice])
+            elif columna in lista_num:
+                sns.histplot(x = columna, 
+                             hue = vr, 
+                             data = self.dataframe, 
+                             ax = axes[indice], 
+                             palette = "magma", 
+                             legend = False)
+                
+            elif columna in lista_cat:
+                sns.countplot(x = columna, 
+                              hue = vr, 
+                              data = self.dataframe, 
+                              ax = axes[indice], 
+                              palette = "magma"
+                              )
+
+            axes[indice].set_title(f"Relación {columna} vs {vr}",size=tamanio_fuente)   
+
+        plt.tight_layout()
     
-    #     print("\n ..................... \n")
-    #     print(f"Los principales estadísticos de las columnas categóricas para el {categoria} son: ")
-    #     display(dataframe_filtrado.describe(include = "O").T)
         
-    #     print("\n ..................... \n")
-    #     print(f"Los principales estadísticos de las columnas numéricas para el {categoria} son: ")
-    #     display(dataframe_filtrado.describe().T)
+    def deteccion_outliers(self, color = "grey"):
 
+        """
+        Detecta y visualiza valores atípicos en un DataFrame.
 
-def separar_dataframe(df):
-    return df.select_dtypes(include=np.number), df.select_dtypes(include="O")
+        Params:
+            - dataframe (pandas.DataFrame):  El DataFrame que se va a usar
 
-def plot_numericas(df, tamanio):
-    cols_numericas=df.columns
+        Returns:
+            No devuelve nada
 
-    nfilas=math.ceil(len(cols_numericas) /2)  #es para que si da 4,5, se quede con 5 y no con 4 porque de normal redondea hacia abajo
-    fig, axes = plt.subplots(nrows= nfilas, ncols= 2, figsize= tamanio)
-    axes=axes.flat
-    for indice,col in enumerate(cols_numericas):
-        sns.histplot(x=col, data= df, ax= axes[indice], bins=50)
-        axes[indice].set_title(col)
-        axes[indice].set_xlabel("")
+        Esta función selecciona las columnas numéricas del DataFrame dado y crea un diagrama de caja para cada una de ellas para visualizar los valores atípicos.
+        """
 
+        lista_num = self.separar_dataframes()[0].columns
 
-    if len(cols_numericas) %2 != 0:
-        fig.delaxes(axes[-1])
-    else:
-        pass
+        fig, axes = plt.subplots(ncols = 2, nrows = math.ceil(len(lista_num)/2), figsize=(20,10))
+        axes = axes.flat
 
-    plt.tight_layout()
-    
-def plot_categoricas(df, tamanio, paleta="mako"):
-    cols_categoricas=df.columns
+        for indice, columna in enumerate(lista_num):
+            sns.boxplot(x=columna, data=self.dataframe, 
+                        ax=axes[indice], 
+                        color=color, 
+                        flierprops={'markersize': 4, 'markerfacecolor': 'orange'})
+            axes[indice].set_title(f"Outliers {columna}")  
 
-    nfilas=math.ceil(len(cols_categoricas) /2)  #es para que si da 4,5, se quede con 5 y no con 4 porque de normal redondea hacia abajo
-    fig, axes = plt.subplots(nrows= nfilas, ncols= 2, figsize= tamanio)
-    axes=axes.flat
-    for indice,col in enumerate(cols_categoricas):
-        sns.countplot(x=col, data= df, ax= axes[indice], palette=paleta, order= df[col].value_counts().index)
-        axes[indice].set_title(col)
-        axes[indice].set_xlabel("")
-        axes[indice].tick_params(rotation=90)
-        plt.tight_layout() 
+        if len(lista_num) % 2 != 0:
+            fig.delaxes(axes[-1])
 
+        
+        plt.tight_layout()
 
-    if len(cols_categoricas) %2 != 0:
-        fig.delaxes(axes[-1])
-    else:
-        pass
+    def correlacion(self, tamano_grafica = (7, 5)):
 
-    plt.tight_layout()    
+        """
+        Visualiza la matriz de correlación de un DataFrame utilizando un mapa de calor.
 
+        Params:
+            - dataframe : pandas DataFrame. El DataFrame que contiene los datos para calcular la correlación.
 
-def relacion_dependiente_categoricas(df, variable_dependiente, tamanio=(15,8), paleta="mako"):
-    df_cat= f.separar_dataframe(df)[1]
-    cols_categoricas=df_cat.columns
-    nfilas=math.ceil(len(cols_categoricas) /2)  #es para que si da 4,5, se quede con 5 y no con 4 porque de normal redondea hacia abajo
-    fig, axes = plt.subplots(nrows= nfilas, ncols= 2, figsize= tamanio)
-    axes=axes.flat
+        Returns:
+        No devuelve nada 
 
-    for indice, col in enumerate(cols_categoricas):
-        datos_agrupados= df.groupby(col)[variable_dependiente].mean().reset_index().sort_values(variable_dependiente, ascending=False)
-        sns.barplot(x=col ,y=variable_dependiente, data=datos_agrupados, palette=paleta, ax=axes[indice])
-        axes[indice].tick_params(rotation=90)
-        axes[indice].set_title(f"Relación entre {col} y {variable_dependiente}")
-        axes[indice].set_xlabel("")
-    plt.tight_layout()
+        Muestra un mapa de calor de la matriz de correlación.
 
+        - Utiliza la función `heatmap` de Seaborn para visualizar la matriz de correlación.
+        - La matriz de correlación se calcula solo para las variables numéricas del DataFrame.
+        - La mitad inferior del mapa de calor está oculta para una mejor visualización.
+        - Permite guardar la imagen del mapa de calor como un archivo .png si se solicita.
 
+        """
 
-def relacion_dependiente_numericas(df, variable_dependiente, tamanio=(15,8), paleta="mako"):
-    df_numericas= f.separar_dataframe(df)[0]
-    cols_numericas=df_numericas.columns
-    nfilas=math.ceil(len(cols_numericas) /2)  #es para que si da 4,5, se quede con 5 y no con 4 porque de normal redondea hacia abajo
-    fig, axes = plt.subplots(nrows= nfilas, ncols= 2, figsize= tamanio)
-    axes=axes.flat
+        plt.figure(figsize = tamano_grafica )
 
-    for indice, col in enumerate(cols_numericas):
-        if col == variable_dependiente:
-            fig.delaxes(axes[indice])
-        else:
-            sns.scatterplot(x=col ,y=variable_dependiente, data=df_numericas, palette=paleta, ax=axes[indice])
+        mask = np.triu(np.ones_like(self.dataframe.corr(numeric_only=True), dtype = np.bool_))
 
-            axes[indice].set_title(f"Relación entre {col} y {variable_dependiente}")
-            axes[indice].set_xlabel("")
-    plt.tight_layout()
-
-
-def matriz_correlacion(df,tamanio=(10,7)):
-    matriz_corr=df.corr(numeric_only=True)
-    plt.figure(figsize=tamanio)
-    mascara=np.triu(np.ones_like(matriz_corr, dtype=np.bool_))
-    sns.heatmap(matriz_corr, annot=True, vmin=-1, vmax=1, mask=mascara)
-    plt.tight_layout()
-
+        sns.heatmap(data = self.dataframe.corr(numeric_only = True), 
+                    annot = True, 
+                    vmin=-1,
+                    vmax=1,
+                    cmap="magma",
+                    linecolor="black", 
+                    fmt='.1g', 
+                    mask = mask)
 
 
 #OUTLIERS
@@ -721,19 +855,6 @@ class Encoding:
     
 
 
-
-
-
-def extract_parking_info(parking_info):
-    if parking_info== "desconocido":  # Si es NaN
-        return 'desconocido'
-    try:
-        
-        info_dict = eval(parking_info)
-        
-        return info_dict.get('isParkingSpaceIncludedInPrice', 'desconocido')
-    except Exception:
-        return 'desconocido'
     
 
 def escalador_datos(data, columns, method = "robust"):
