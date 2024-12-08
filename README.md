@@ -3,7 +3,7 @@
 
 
 ## Entrenamiento de modelos predictivos de los ingresos por ventas en función del tipo de cliente
-![Modelos predictivos de los ingresos por ventas en función del tipo de cliente](https://github.com/jgilsu11/Proyecto7-PrediccionCasas/blob/main/Imagen/imagen%20alquiler.webp)  
+![Modelos predictivos de los ingresos por ventas en función del tipo de cliente](https://github.com/jgilsu11/Proyecto9-Clustering/blob/main/Imagen/multinacional.webp)  
   
 
 ***Descripción:***
